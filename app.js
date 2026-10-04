@@ -9,7 +9,7 @@ async function request(path,options={},auth=true){
  if(auth)await ensureSession();
  const currentSession=session;
  const headers={apikey:KEY,...options.headers};
- if(auth){if(!session){$('connection-dialog').showModal();throw Error('Verify your administrator email once to load orders and save website changes. This device will remember your session.');}headers.Authorization='Bearer '+session.access_token;}
+ if(auth){if(!session){$('connection-dialog').showModal();throw Error('Sign in with your administrator password to load orders and save website changes. This device will remember your session.');}headers.Authorization='Bearer '+session.access_token;}
  if(options.body&&!(options.body instanceof Blob))headers['Content-Type']='application/json';
  const response=await fetch(URL_BASE+path,{...options,headers,signal:AbortSignal.timeout(25000)});
  const text=await response.text();let body;try{body=text?JSON.parse(text):null;}catch{body=null;}
@@ -99,31 +99,24 @@ async function ensureSession(){
  await refreshing;
 }
 const ADMIN_EMAIL='vgamerking45@gmail.com';
-function parseEmailCredential(token){
- if(/^[0-9]{6,10}$/.test(token))return {email:ADMIN_EMAIL,token,type:'email'};
- let link;try{link=new URL(token);}catch{throw Error('Paste the Sign in link address from your newest email.');}
- if(link.origin!==URL_BASE||link.pathname!=='/auth/v1/verify'||link.searchParams.get('type')!=='magiclink'||!link.searchParams.get('token'))throw Error('Use the original Sign in link from your Anime Kingdom email.');
- return {token_hash:link.searchParams.get('token'),type:'magiclink'};
-}
 function connected(){ $('connection-dialog').close();$('connection-open').hidden=true;$('connect').hidden=true;$('disconnect').hidden=false;$('connection-label').textContent='Connected to animekingdom.in'; }
 $('connection-open').onclick=()=>$('connection-dialog').showModal();
 $('connection-close').onclick=()=>$('connection-dialog').close();
 $('disconnect').onclick=()=>{signOut();load();};
-$('send-code').onclick=async()=>{const b=$('send-code');b.disabled=true;try{await request('/auth/v1/otp',{method:'POST',body:JSON.stringify({email:ADMIN_EMAIL,create_user:false})},false);message('Email requested. In your newest email, copy the Sign in link address without opening it, paste it here, then select Verify & connect.',false,'auth-status');}catch(e){message(e.message,true,'auth-status');}finally{b.disabled=false;}};
 $('connect').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{
- const token=$('connect').elements.code.value.trim();const credentials=parseEmailCredential(token);
- const value=await request('/auth/v1/verify',{method:'POST',body:JSON.stringify(credentials)},false);
+ const password=$('connect').elements.password.value;const credentials={email:ADMIN_EMAIL,password};
+ const value=await request('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify(credentials)},false);
  session=value;const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});
- if(allowed!==true)throw Error('Email verified, but administrator access still needs activating.');
- remember(value);$('connect').elements.code.value='';connected();await load();
- }catch(err){signOut();message(err.message,true,'auth-status');}finally{b.disabled=false;}};
+ if(allowed!==true)throw Error('This account does not have administrator access.');
+ remember(value);$('connect').elements.password.value='';connected();await load();
+ }catch(err){signOut();message(err.message,true,'auth-status');}finally{$('connect').elements.password.value='';b.disabled=false;}};
 async function start(){try{const saved=JSON.parse(localStorage.getItem('ak-admin-session')||'null');if(saved?.refresh_token){session=saved;await ensureSession();const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});if(allowed!==true)throw Error('Administrator access is not activated.');connected();}await load();}catch(e){signOut();message(e.message,true);}}
 let overview={products:[],orders:null};
 async function readAll(path,auth){const all=[];for(let n=0;;n+=100){const batch=await request(path+'&limit=100&offset='+n,{},auth);if(!Array.isArray(batch))throw Error('Unexpected store response.');all.push(...batch);if(batch.length<100)return all;}}
 async function loadOverview(selected){
  const products=await readAll('/rest/v1/ak_products?select=*&order=id.asc',false);
  let orders=null;if(session&&selected!=='inventory')orders=await readAll('/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,form_data&form_type=eq.checkout&order=created_at.desc,id.desc',true);
- if(tab!==selected)return;overview={products,orders};renderOverview();message(orders===null&&selected!=='inventory'?'Catalog connected. Verify your email to see private orders and customer data.':'Store data refreshed. Updates checked every 15 seconds.');
+ if(tab!==selected)return;overview={products,orders};renderOverview();message(orders===null&&selected!=='inventory'?'Catalog connected. Sign in to see private orders and customer data.':'Store data refreshed. Updates checked every 15 seconds.');
 }
 function renderOverview(){if(!session)overview.orders=null;const list=$('list');list.replaceChildren();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));const q=$('search').value.toLowerCase();
  if(tab==='dashboard'){
@@ -131,7 +124,7 @@ function renderOverview(){if(!session)overview.orders=null;const list=$('list');
  for(const [label,value,note] of [['PRODUCTS',overview.products.length,'Live website catalog'],['TOTAL ORDERS',orders?orders.length:'—',orders?'All checkout orders':'Connect to view'],['PAID / DELIVERED VALUE',orders?money(revenue):'—','Recorded order totals; not net profit'],['AVERAGE ORDER VALUE',orders?money(completed.length?revenue/completed.length:0):'—','Paid or delivered orders'],['LOW STOCK',overview.products.filter(p=>Number(p.data.stock)<=5).length,'Five units or fewer'],['PENDING ORDERS',orders?orders.filter(o=>!o.status||o.status==='pending').length:'—','Awaiting confirmation']]){const c=element('article',undefined,grid);element('small',label,c);element('h2',String(value),c);element('p',note,c);}return;
  }
  if(tab==='inventory'){for(const row of filteredRows(overview.products,'inventory')){const c=element('article',undefined,list);safeImage(row.data.imageUrl,c);element('h3',row.data.name,c);element('p',row.data.stock+' units · '+(row.data.stock===0?'Out of stock':row.data.stock<=5?'Low stock':'In stock'),c);element('button','Update stock',c).onclick=()=>edit(row);}return;}
- if(!overview.orders){element('p','Connect your administrator email to view customers from your orders.',list);return;}
+ if(!overview.orders){element('p','Sign in to view customers from your orders.',list);return;}
  const customers=new Map();for(const o of overview.orders){const key=o.email||o.phone||o.id;const c=customers.get(key)||{name:o.customer_name,email:o.email,phone:o.phone,count:0,total:0};c.count++;c.total+=Number(o.form_data?.total)||0;customers.set(key,c);}for(const c of [...customers.values()].filter(c=>JSON.stringify(c).toLowerCase().includes(q))){const card=element('article',undefined,list);element('h3',c.name||'Customer',card);element('p',[c.email,c.phone].filter(Boolean).join(' · '),card);element('p',c.count+' orders · '+money(c.total)+' ordered',card);}if(!customers.size)element('p','No customer orders yet.',list);
 }
 start();
