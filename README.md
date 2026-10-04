@@ -32,3 +32,9 @@ Edit the root website files and run npm run build to synchronize the Android ass
 - Orders can be filtered by fulfillment status. Customers are grouped from order records. Coupons support percentage or fixed discounts and minimum order values.
 - Public catalog data refreshes every 15 seconds while idle. Orders and saving changes require an authorized administrator session. The panel shows connection errors rather than fabricated order data.
 - Configure allowed authentication redirect URLs for your deployed domain in Supabase. Deploying the source alone does not authorize a device.
+
+## Node.js hosting (503 startup fix)
+
+For hosts that run a Node application, use `npm start` (entry file `server.cjs`). The production server listens on `0.0.0.0` and the hosting platform's `PORT`, defaulting to 3000. Health check: `/healthz`. Use Node 18 or newer. Do not use the localhost-only development preview for production. Static hosting can still use `npm run build` and publish `dist`.
+
+After pulling a new commit, redeploy/restart the hosting application. A 503 that persists requires checking the host's deployment logs and start command; a GitHub push alone does not guarantee the host has deployed the change.
