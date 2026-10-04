@@ -4,6 +4,8 @@
   "private": true,
   "description": "Anime Kingdom store administration website",
   "scripts": {
+    "dev": "node admin-android/preview.cjs",
+    "start": "node admin-android/preview.cjs",
     "build": "node scripts/build.cjs",
     "test": "node admin-android/test-session.cjs && node admin-android/test-sync.cjs"
   },
