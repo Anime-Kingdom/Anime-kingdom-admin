@@ -1,0 +1,13 @@
+{
+  "name": "anime-kingdom-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Anime Kingdom store administration website",
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "test": "node admin-android/test-session.cjs && node admin-android/test-sync.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

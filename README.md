@@ -2,7 +2,9 @@
 
 Standalone admin website for animekingdom.in.
 
-Deploy as a static website with index.html at the root. No build command is required. Publish directory: .
+For hosting imports, select Other / Static website, set the build command to `npm run build`, and set the publish directory to `dist`. No dependencies are required. The build copies only the three website files into `dist`.
+
+You can also deploy directly as a static website with index.html at the root and no build command.
 
 Uses the existing Supabase store database. Public catalog and coupons load without sign-in. Orders and mutations require an authorized administrator session. A separate domain does not replace database access controls.
 

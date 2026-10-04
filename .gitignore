@@ -7,3 +7,4 @@ node_modules/
 **/*.keystore
 **/signing-password.txt
 apk-build-tools/
+dist/
