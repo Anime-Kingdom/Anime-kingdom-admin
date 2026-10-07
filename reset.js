@@ -1,0 +1,10 @@
+'use strict';
+const endpoint='https://iuftepknrbankwkfdbuc.supabase.co/auth/v1/user';
+const publicKey='sb_publishable_hnpfNcfu6QKRwOdXeRd0FA_Cv34axxK';
+const status=document.getElementById('reset-status'),form=document.getElementById('reset-form');
+const params=new URLSearchParams(location.hash.slice(1));let recoveryToken=params.get('access_token');
+history.replaceState(null,'',location.pathname);
+async function authRequest(options={}){const response=await fetch(endpoint,{...options,headers:{apikey:publicKey,Authorization:'Bearer '+recoveryToken,'Content-Type':'application/json'},signal:AbortSignal.timeout(25000)});const data=await response.json();if(!response.ok)throw Error(data.msg||data.message||data.error_description||'Password reset failed.');return data;}
+async function init(){try{if(params.get('error')||params.get('type')!=='recovery'||!recoveryToken)throw Error('This recovery link is missing, invalid or expired. Request a fresh password recovery email.');const user=await authRequest();if(user.email?.toLowerCase()!=='vgamerking45@gmail.com')throw Error('This recovery link is for a different account.');status.textContent='Choose the new passcode for your RAM administrator account.';form.hidden=false;}catch(error){recoveryToken=null;status.textContent=error.message;status.className='error';}}
+form.onsubmit=async event=>{event.preventDefault();const password=document.getElementById('new-password'),confirmation=document.getElementById('confirm-password'),button=document.getElementById('reset-submit');if(button.disabled)return;if(password.value!==confirmation.value){status.textContent='The passcodes do not match.';return;}button.disabled=true;try{await authRequest({method:'PUT',body:JSON.stringify({password:password.value})});recoveryToken=null;localStorage.removeItem('ak-admin-session');form.hidden=true;status.className='success';status.textContent='Passcode updated. Return to administrator sign in and use RAM with your new passcode.';}catch(error){status.className='error';status.textContent=error.message;}finally{password.value='';confirmation.value='';button.disabled=false;}};
+init();
