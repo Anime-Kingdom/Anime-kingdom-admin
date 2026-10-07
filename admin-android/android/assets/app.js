@@ -17,7 +17,7 @@ async function request(path,options={},auth=true){
  if(!response.ok){if(response.status===401&&auth){signOut();throw Error('Session expired. Please sign in again.');}throw Error(body?.msg||body?.message||body?.error_description||'Request failed ('+response.status+').');}
  return body;
 }
-function signOut(){session=null;overview={products:[],orders:null};localStorage.removeItem('ak-admin-session');rows=[];$('list').replaceChildren();$('disconnect').hidden=true;$('connection-label').textContent='Store preview';}
+function signOut(){$('gateway').hidden=false;$('admin-shell').hidden=true;session=null;overview={products:[],orders:null};localStorage.removeItem('ak-admin-session');rows=[];$('list').replaceChildren();$('disconnect').hidden=true;$('connection-label').textContent='Store preview';}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(busy)return;tab=b.dataset.tab;load();});
 $('filter').onchange=render;$('sort').onchange=render;
 $('refresh').onclick=()=>load();$('search').oninput=render;$('more').onclick=()=>load(true);
@@ -98,9 +98,16 @@ async function ensureSession(){
  if(!refreshing)refreshing=request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:session.refresh_token})},false).then(remember).catch(e=>{signOut();throw e;}).finally(()=>{refreshing=null;});
  await refreshing;
 }
-function connected(){ $('disconnect').hidden=false;$('connection-label').textContent='Connected to animekingdom.in'; }
+function connected(){ $('gateway').hidden=true;$('admin-shell').hidden=false; $('disconnect').hidden=false;$('connection-label').textContent='Connected to animekingdom.in'; }
 $('disconnect').onclick=()=>{signOut();load();};
-async function start(){try{const saved=JSON.parse(localStorage.getItem('ak-admin-session')||'null');if(saved?.refresh_token){session=saved;await ensureSession();const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});if(allowed!==true)throw Error('Administrator access is not activated.');connected();}await load();}catch(e){signOut();message(e.message,true);}}
+$('toggle-passcode').onclick=()=>{const field=$('admin-passcode');const visible=field.type==='password';field.type=visible?'text':'password';$('toggle-passcode').textContent=visible?'Hide':'Show';$('toggle-passcode').setAttribute('aria-label',visible?'Hide passcode':'Show passcode');$('toggle-passcode').setAttribute('aria-pressed',String(visible));};
+$('gateway-form').onsubmit=async event=>{event.preventDefault();const button=$('gateway-submit');if(button.disabled)return;button.disabled=true;message('Checking administrator access…',false,'gateway-status');try{
+ if($('admin-identifier').value.trim()!=='RAM')throw Error('Invalid administrator identifier or passcode.');
+ const value=await request('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email:'vgamerking45@gmail.com',password:$('admin-passcode').value})},false);
+ session=value;const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});if(allowed!==true)throw Error('This account does not have administrator access.');
+ remember(value);connected();message('',false,'gateway-status');await load();
+ }catch(error){signOut();message(error.message,true,'gateway-status');}finally{$('admin-passcode').value='';button.disabled=false;}};
+async function start(){try{const saved=JSON.parse(localStorage.getItem('ak-admin-session')||'null');if(saved?.refresh_token){session=saved;await ensureSession();const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});if(allowed!==true)throw Error('Administrator access is not activated.');connected();await load();}}catch(error){signOut();message(error.message,true,'gateway-status');}}
 let overview={products:[],orders:null};
 async function readAll(path,auth){const all=[];for(let n=0;;n+=100){const batch=await request(path+'&limit=100&offset='+n,{},auth);if(!Array.isArray(batch))throw Error('Unexpected store response.');all.push(...batch);if(batch.length<100)return all;}}
 async function loadOverview(selected){

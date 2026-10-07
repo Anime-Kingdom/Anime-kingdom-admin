@@ -7,7 +7,7 @@
     "dev": "node admin-android/preview.cjs",
     "start": "node server.cjs",
     "build": "node scripts/build.cjs",
-    "test": "node admin-android/test-session.cjs && node admin-android/test-sync.cjs && node scripts/test-server.cjs"
+    "test": "node admin-android/test-session.cjs && node admin-android/test-sync.cjs && node scripts/test-server.cjs && node scripts/test-gateway.cjs"
   },
   "engines": {
     "node": ">=18"
