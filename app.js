@@ -9,7 +9,7 @@ async function request(path,options={},auth=true){
  if(auth)await ensureSession();
  const currentSession=session;
  const headers={apikey:KEY,...options.headers};
- if(auth){if(!session){throw Error('Administrator access is required to load orders or save changes. Use the Sign in button when you are ready.');}headers.Authorization='Bearer '+session.access_token;}
+ if(auth){if(!session){throw Error('Administrator access is not configured on this device. Orders and changes are unavailable.');}headers.Authorization='Bearer '+session.access_token;}
  if(options.body&&!(options.body instanceof Blob))headers['Content-Type']='application/json';
  const response=await fetch(URL_BASE+path,{...options,headers,signal:AbortSignal.timeout(25000)});
  const text=await response.text();let body;try{body=text?JSON.parse(text):null;}catch{body=null;}
@@ -17,7 +17,7 @@ async function request(path,options={},auth=true){
  if(!response.ok){if(response.status===401&&auth){signOut();throw Error('Session expired. Please sign in again.');}throw Error(body?.msg||body?.message||body?.error_description||'Request failed ('+response.status+').');}
  return body;
 }
-function signOut(){session=null;overview={products:[],orders:null};localStorage.removeItem('ak-admin-session');rows=[];$('list').replaceChildren();$('connect').hidden=false;$('connection-open').hidden=false;$('disconnect').hidden=true;$('connection-label').textContent='Store preview · Connect to manage';}
+function signOut(){session=null;overview={products:[],orders:null};localStorage.removeItem('ak-admin-session');rows=[];$('list').replaceChildren();$('disconnect').hidden=true;$('connection-label').textContent='Store preview';}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(busy)return;tab=b.dataset.tab;load();});
 $('filter').onchange=render;$('sort').onchange=render;
 $('refresh').onclick=()=>load();$('search').oninput=render;$('more').onclick=()=>load(true);
@@ -98,33 +98,23 @@ async function ensureSession(){
  if(!refreshing)refreshing=request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:session.refresh_token})},false).then(remember).catch(e=>{signOut();throw e;}).finally(()=>{refreshing=null;});
  await refreshing;
 }
-const ADMIN_EMAIL='vgamerking45@gmail.com';
-function connected(){ $('connection-dialog').close();$('connection-open').hidden=true;$('connect').hidden=true;$('disconnect').hidden=false;$('connection-label').textContent='Connected to animekingdom.in'; }
-$('connection-open').onclick=()=>$('connection-dialog').showModal();
-$('connection-close').onclick=()=>$('connection-dialog').close();
+function connected(){ $('disconnect').hidden=false;$('connection-label').textContent='Connected to animekingdom.in'; }
 $('disconnect').onclick=()=>{signOut();load();};
-$('connect').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{
- const password=$('connect').elements.password.value;const credentials={email:ADMIN_EMAIL,password};
- const value=await request('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify(credentials)},false);
- session=value;const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});
- if(allowed!==true)throw Error('This account does not have administrator access.');
- remember(value);$('connect').elements.password.value='';connected();await load();
- }catch(err){signOut();message(err.message,true,'auth-status');}finally{$('connect').elements.password.value='';b.disabled=false;}};
 async function start(){try{const saved=JSON.parse(localStorage.getItem('ak-admin-session')||'null');if(saved?.refresh_token){session=saved;await ensureSession();const allowed=await request('/rest/v1/rpc/ak_is_admin',{method:'POST',body:'{}'});if(allowed!==true)throw Error('Administrator access is not activated.');connected();}await load();}catch(e){signOut();message(e.message,true);}}
 let overview={products:[],orders:null};
 async function readAll(path,auth){const all=[];for(let n=0;;n+=100){const batch=await request(path+'&limit=100&offset='+n,{},auth);if(!Array.isArray(batch))throw Error('Unexpected store response.');all.push(...batch);if(batch.length<100)return all;}}
 async function loadOverview(selected){
  const products=await readAll('/rest/v1/ak_products?select=*&order=id.asc',false);
  let orders=null;if(session&&selected!=='inventory')orders=await readAll('/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,form_data&form_type=eq.checkout&order=created_at.desc,id.desc',true);
- if(tab!==selected)return;overview={products,orders};renderOverview();message(orders===null&&selected!=='inventory'?'Catalog connected. Sign in to see private orders and customer data.':'Store data refreshed. Updates checked every 15 seconds.');
+ if(tab!==selected)return;overview={products,orders};renderOverview();message(orders===null&&selected!=='inventory'?'Catalog connected. Private orders require administrator access.':'Store data refreshed. Updates checked every 15 seconds.');
 }
 function renderOverview(){if(!session)overview.orders=null;const list=$('list');list.replaceChildren();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));const q=$('search').value.toLowerCase();
  if(tab==='dashboard'){
  const grid=element('div',undefined,list);grid.className='metrics';const orders=overview.orders;const completed=orders?.filter(o=>o.status==='delivered'||o.form_data?.paymentStatus==='paid')||[];const revenue=completed.reduce((n,o)=>n+(Number(o.form_data?.total)||0),0);
- for(const [label,value,note] of [['PRODUCTS',overview.products.length,'Live website catalog'],['TOTAL ORDERS',orders?orders.length:'—',orders?'All checkout orders':'Connect to view'],['PAID / DELIVERED VALUE',orders?money(revenue):'—','Recorded order totals; not net profit'],['AVERAGE ORDER VALUE',orders?money(completed.length?revenue/completed.length:0):'—','Paid or delivered orders'],['LOW STOCK',overview.products.filter(p=>Number(p.data.stock)<=5).length,'Five units or fewer'],['PENDING ORDERS',orders?orders.filter(o=>!o.status||o.status==='pending').length:'—','Awaiting confirmation']]){const c=element('article',undefined,grid);element('small',label,c);element('h2',String(value),c);element('p',note,c);}return;
+ for(const [label,value,note] of [['PRODUCTS',overview.products.length,'Live website catalog'],['TOTAL ORDERS',orders?orders.length:'—',orders?'All checkout orders':'Administrator access required'],['PAID / DELIVERED VALUE',orders?money(revenue):'—','Recorded order totals; not net profit'],['AVERAGE ORDER VALUE',orders?money(completed.length?revenue/completed.length:0):'—','Paid or delivered orders'],['LOW STOCK',overview.products.filter(p=>Number(p.data.stock)<=5).length,'Five units or fewer'],['PENDING ORDERS',orders?orders.filter(o=>!o.status||o.status==='pending').length:'—','Awaiting confirmation']]){const c=element('article',undefined,grid);element('small',label,c);element('h2',String(value),c);element('p',note,c);}return;
  }
  if(tab==='inventory'){for(const row of filteredRows(overview.products,'inventory')){const c=element('article',undefined,list);safeImage(row.data.imageUrl,c);element('h3',row.data.name,c);element('p',row.data.stock+' units · '+(row.data.stock===0?'Out of stock':row.data.stock<=5?'Low stock':'In stock'),c);element('button','Update stock',c).onclick=()=>edit(row);}return;}
- if(!overview.orders){element('p','Sign in to view customers from your orders.',list);return;}
+ if(!overview.orders){element('p','Administrator access is required to view customer orders.',list);return;}
  const customers=new Map();for(const o of overview.orders){const key=o.email||o.phone||o.id;const c=customers.get(key)||{name:o.customer_name,email:o.email,phone:o.phone,count:0,total:0};c.count++;c.total+=Number(o.form_data?.total)||0;customers.set(key,c);}for(const c of [...customers.values()].filter(c=>JSON.stringify(c).toLowerCase().includes(q))){const card=element('article',undefined,list);element('h3',c.name||'Customer',card);element('p',[c.email,c.phone].filter(Boolean).join(' · '),card);element('p',c.count+' orders · '+money(c.total)+' ordered',card);}if(!customers.size)element('p','No customer orders yet.',list);
 }
 start();
