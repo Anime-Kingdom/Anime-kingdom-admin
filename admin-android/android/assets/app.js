@@ -9,7 +9,7 @@ async function request(path,options={},auth=true){
  if(auth)await ensureSession();
  const currentSession=session;
  const headers={apikey:KEY,...options.headers};
- if(auth){if(!session){$('connection-dialog').showModal();throw Error('Sign in with your administrator password to load orders and save website changes. This device will remember your session.');}headers.Authorization='Bearer '+session.access_token;}
+ if(auth){if(!session){throw Error('Administrator access is required to load orders or save changes. Use the Sign in button when you are ready.');}headers.Authorization='Bearer '+session.access_token;}
  if(options.body&&!(options.body instanceof Blob))headers['Content-Type']='application/json';
  const response=await fetch(URL_BASE+path,{...options,headers,signal:AbortSignal.timeout(25000)});
  const text=await response.text();let body;try{body=text?JSON.parse(text):null;}catch{body=null;}
