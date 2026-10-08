@@ -5,7 +5,7 @@ const { createServer } = require('../server.cjs');
   await new Promise(resolve => server.listen(0, '0.0.0.0', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   try {
-    for (const route of ['/', '/index.html', '/app.js?v=2', '/style.css', '/healthz']) {
+    for (const route of ['/', '/index.html', '/app.js?v=2', '/style.css', '/healthz', '/verify.html', '/verification.js', '/verification.css', '/certificates.js', '/vendor/qrcode.js']) {
       const response = await fetch(base + route);
       assert.equal(response.status, 200, route);
       assert.ok((await response.text()).length > 0);

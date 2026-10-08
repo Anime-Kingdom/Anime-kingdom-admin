@@ -11,3 +11,23 @@ button.danger{background:#39121d;border-color:#873047;color:#ffc0cf;margin-left:
 .order-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;clear:both}.order-actions button,.order-actions select{margin:8px 0 0}.order-actions .compact-delete{font-size:12px;padding:6px 10px;min-height:36px}.payment-details{clear:both;border-top:1px solid #33213d;padding-top:12px;margin-top:14px}.payment-details h4{margin:0 0 8px}.payment-details summary{cursor:pointer;color:#c795ff;padding:10px 0}.payment-details img.payment-proof{float:none;display:block;width:auto;height:auto;max-width:100%;max-height:650px;object-fit:contain;margin:12px 0}
 
 .certificate-link{display:block;color:#c39afa;margin:12px 0}#qr-label{text-align:center}#qr-image{background:white;padding:12px;width:260px;max-width:100%;margin:auto}#qr-image svg{width:100%;display:block}#qr-dialog button{margin:5px}#certificate-dialog p{font-size:13px}@media print{body:has(#qr-dialog[open])>*{display:none!important}body:has(#qr-dialog[open]) #admin-shell{display:block!important}body:has(#qr-dialog[open]) #admin-shell>*{display:none!important}body:has(#qr-dialog[open]) #qr-dialog{display:block!important;position:static;border:0;width:90mm;max-height:none;color:#000;background:#fff}#qr-dialog .no-print{display:none!important}#qr-label p,#qr-label small{color:#000}#qr-dialog::backdrop{display:none}}
+/* Comfortable mobile controls and clearer card grouping. */
+button,input,select{min-height:44px}
+button:disabled{opacity:.55;cursor:wait}
+dialog{width:min(760px,calc(100vw - 28px));max-height:90svh;overflow:auto;overscroll-behavior:contain}
+dialog::backdrop{background:#030208cc;backdrop-filter:blur(5px)}
+.certificate-card{border-left:3px solid #9e49e7;background:linear-gradient(120deg,#151020,#090c14)}
+.certificate-card h3{overflow-wrap:anywhere}
+.certificate-card button{margin:6px 8px 0 0}
+.certificate-link{padding:8px 0;overflow-wrap:anywhere}
+#qr-url{font-size:13px}#qr-image{width:300px}
+@media(max-width:600px){
+ nav{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
+ nav button{white-space:nowrap;flex-shrink:0}
+ .order-actions{display:grid;grid-template-columns:1fr 1fr}
+ .order-actions select{grid-column:1/-1;max-width:none;width:100%}
+ .order-actions button{width:100%;min-height:44px}
+ .certificate-card button{min-height:46px}
+ dialog{padding:20px 16px}input,select,textarea{font-size:16px}
+ .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
