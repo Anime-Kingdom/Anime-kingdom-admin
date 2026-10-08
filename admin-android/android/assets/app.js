@@ -63,7 +63,18 @@ function render(){if(['dashboard','customers','inventory'].includes(tab)){render
  element('p','Payment: '+(data.paymentStatus||'Not recorded'),card);
  const select=element('select',undefined,card);select.setAttribute('aria-label','Order status');const statuses=['pending','confirmed','packed','shipped','delivered','cancelled'];if(row.status&&!statuses.includes(row.status))statuses.unshift(row.status);for(const s of statuses){const o=element('option',s,select);o.value=s;}select.value=row.status||'pending';
  const b=element('button','Update status',card);b.onclick=async()=>{b.disabled=true;try{const updated=await request('/rest/v1/AK%20orders?id=eq.'+encodeURIComponent(row.id),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:select.value})});if(updated.length!==1)throw Error('Order was not updated.');row.status=select.value;message('Order status saved.');}catch(err){message(err.message,true);}finally{b.disabled=false;}};
+ const remove=element('button','Delete order',card);remove.className='danger';remove.onclick=()=>deleteOrder(row,remove);
  }}
+}
+async function deleteOrder(row,button){
+ if(busy||button.disabled)return;
+ if(!confirm('Permanently delete order '+row.id+' for '+(row.customer_name||'Customer')+'? This cannot be undone. It will not refund payment or restore stock.'))return;
+ busy=true;button.disabled=true;
+ try{
+ const removed=await request('/rest/v1/AK%20orders?id=eq.'+encodeURIComponent(row.id)+'&form_type=eq.checkout&select=id',{method:'DELETE',headers:{Prefer:'return=representation'}});
+ if(!Array.isArray(removed)||removed.length!==1||removed[0].id!==row.id)throw Error('Order was not deleted. Administrator delete permission may need to be enabled.');
+ rows=rows.filter(item=>item.id!==row.id);if(overview.orders)overview.orders=overview.orders.filter(item=>item.id!==row.id);render();message('Order deleted. Payment and stock were not changed.');
+ }catch(error){message(error.message,true);}finally{busy=false;button.disabled=false;}
 }
 $('add').onclick=()=>tab==='coupons'?editCoupon(null):edit(null);
 function edit(row){editing=row;const p=row?.data||{name:'',anime:'',category:'Figures',price:599,stock:20,description:'',featured:false};const f=$('product');for(const name of ['name','anime','category','price','stock','description'])f.elements[name].value=p[name]??'';f.elements.original.value=p.original>0?p.original:'';f.elements.featured.checked=!!p.featured;photos=[...(p.imageUrls||[p.imageUrl]).filter(Boolean)];renderPhotos();$('upload').value='';message('',false,'edit-status');$('editor').showModal();}
