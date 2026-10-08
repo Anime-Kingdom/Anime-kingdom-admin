@@ -7,3 +7,5 @@ header{position:relative}header p{max-width:650px}header small:before{content:'A
 .gateway-logo-image{display:block;width:min(272px,100%);height:auto;aspect-ratio:1;object-fit:contain;margin:0 auto 36px;box-shadow:0 0 40px #9427d522}
 
 button.danger{background:#39121d;border-color:#873047;color:#ffc0cf;margin-left:10px}
+
+.order-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;clear:both}.order-actions button,.order-actions select{margin:8px 0 0}.order-actions .compact-delete{font-size:12px;padding:6px 10px;min-height:36px}.payment-details{clear:both;border-top:1px solid #33213d;padding-top:12px;margin-top:14px}.payment-details h4{margin:0 0 8px}.payment-details summary{cursor:pointer;color:#c795ff;padding:10px 0}.payment-details img.payment-proof{float:none;display:block;width:auto;height:auto;max-width:100%;max-height:650px;object-fit:contain;margin:12px 0}

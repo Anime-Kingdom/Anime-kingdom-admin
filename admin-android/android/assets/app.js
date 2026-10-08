@@ -27,7 +27,7 @@ async function load(append=false,quiet=false){if(busy)return;busy=true;const sel
  $('heading').textContent=selected[0].toUpperCase()+selected.slice(1);$('add').hidden=!['products','coupons'].includes(selected);$('add').textContent=selected==='coupons'?'+ Coupon':'+ Product';
  try{
  if(['dashboard','customers','inventory'].includes(selected)){await loadOverview(selected);return;}
- const path=selected==='coupons'?'/rest/v1/ak_coupons?select=*&order=code.asc':selected==='products'?'/rest/v1/ak_products?select=*&order=id.asc':'/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,form_data&form_type=eq.checkout&order=created_at.desc,id.desc';
+ const path=selected==='coupons'?'/rest/v1/ak_coupons?select=*&order=code.asc':selected==='products'?'/rest/v1/ak_products?select=*&order=id.asc':'/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,utr_number,form_data&form_type=eq.checkout&order=created_at.desc,id.desc';
  const all=[];let page=0;
  while(true){const batch=await request(path+'&limit=100&offset='+page,{},selected==='orders');if(!Array.isArray(batch))throw Error('Unexpected database response.');all.push(...batch);if(batch.length<100)break;page+=batch.length;}
  if(selected!==tab)return;
@@ -61,9 +61,20 @@ function render(){if(['dashboard','customers','inventory'].includes(tab)){render
  element('p','Total '+money(data.total)+' · '+(row.payment_method||data.paymentMethod||'Unknown payment method'),card).className='money';
  const a=data.address||{};element('p',[a.address,a.city,a.state,a.pin].filter(Boolean).join(', '),card);element('p',[row.phone,row.email].filter(Boolean).join(' · '),card);
  element('p','Payment: '+(data.paymentStatus||'Not recorded'),card);
- const select=element('select',undefined,card);select.setAttribute('aria-label','Order status');const statuses=['pending','confirmed','packed','shipped','delivered','cancelled'];if(row.status&&!statuses.includes(row.status))statuses.unshift(row.status);for(const s of statuses){const o=element('option',s,select);o.value=s;}select.value=row.status||'pending';
- const b=element('button','Update status',card);b.onclick=async()=>{b.disabled=true;try{const updated=await request('/rest/v1/AK%20orders?id=eq.'+encodeURIComponent(row.id),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:select.value})});if(updated.length!==1)throw Error('Order was not updated.');row.status=select.value;message('Order status saved.');}catch(err){message(err.message,true);}finally{b.disabled=false;}};
- const remove=element('button','Delete order',card);remove.className='danger';remove.onclick=()=>deleteOrder(row,remove);
+ if((row.payment_method||data.paymentMethod)==='upi'||row.utr_number||data.upiReference||data.paymentScreenshot){
+ const payment=element('section',undefined,card);payment.className='payment-details';element('h4','UPI payment details',payment);
+ element('p','UTR / reference: '+(row.utr_number||data.upiReference||'Not provided'),payment);
+ if(data.upiId)element('p','Paid to UPI ID: '+data.upiId,payment);
+ element('p','Customer-submitted proof · Verify payment in your bank or UPI app.',payment);
+ const proof=data.paymentScreenshot;
+ if(typeof proof==='string'&&proof.length<=3000000&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(proof)){
+ const details=element('details',undefined,payment);element('summary','View payment screenshot',details);const img=element('img',undefined,details);img.className='payment-proof';img.alt='Customer payment screenshot';img.loading='lazy';img.src=proof;
+ }else element('p',proof?'Payment screenshot format is not supported.':'No payment screenshot attached.',payment);
+ }
+ const actions=element('div',undefined,card);actions.className='order-actions';
+ const select=element('select',undefined,actions);select.setAttribute('aria-label','Order status');const statuses=['pending','confirmed','packed','shipped','delivered','cancelled'];if(row.status&&!statuses.includes(row.status))statuses.unshift(row.status);for(const s of statuses){const o=element('option',s,select);o.value=s;}select.value=row.status||'pending';
+ const b=element('button','Update status',actions);b.onclick=async()=>{b.disabled=true;try{const updated=await request('/rest/v1/AK%20orders?id=eq.'+encodeURIComponent(row.id),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:select.value})});if(updated.length!==1)throw Error('Order was not updated.');row.status=select.value;message('Order status saved.');}catch(err){message(err.message,true);}finally{b.disabled=false;}};
+ const remove=element('button','Delete',actions);remove.className='danger compact-delete';remove.setAttribute('aria-label','Permanently delete order '+row.id);remove.onclick=()=>deleteOrder(row,remove);
  }}
 }
 async function deleteOrder(row,button){
@@ -123,7 +134,7 @@ let overview={products:[],orders:null};
 async function readAll(path,auth){const all=[];for(let n=0;;n+=100){const batch=await request(path+'&limit=100&offset='+n,{},auth);if(!Array.isArray(batch))throw Error('Unexpected store response.');all.push(...batch);if(batch.length<100)return all;}}
 async function loadOverview(selected){
  const products=await readAll('/rest/v1/ak_products?select=*&order=id.asc',false);
- let orders=null;if(session&&selected!=='inventory')orders=await readAll('/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,form_data&form_type=eq.checkout&order=created_at.desc,id.desc',true);
+ let orders=null;if(session&&selected!=='inventory')orders=await readAll('/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,utr_number,form_data&form_type=eq.checkout&order=created_at.desc,id.desc',true);
  if(tab!==selected)return;overview={products,orders};renderOverview();message(orders===null&&selected!=='inventory'?'Catalog connected. Private orders require administrator access.':'Store data refreshed. Updates checked every 15 seconds.');
 }
 function renderOverview(){if(!session)overview.orders=null;const list=$('list');list.replaceChildren();document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));const q=$('search').value.toLowerCase();
