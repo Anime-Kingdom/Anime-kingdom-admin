@@ -4,6 +4,9 @@ const path = require('node:path');
 
 // Serve only public UI assets, never SQL, source archives or credentials.
 const files = {
+  '/verify.html': ['verify.html', 'text/html; charset=utf-8'],
+  '/verification.js': ['verification.js', 'text/javascript; charset=utf-8'],
+  '/verification.css': ['verification.css', 'text/css; charset=utf-8'],
   '/certificates.js': ['certificates.js','text/javascript; charset=utf-8'],
   '/vendor/qrcode.js': ['vendor/qrcode.js','text/javascript; charset=utf-8'],
   '/reset.html': ['reset.html', 'text/html; charset=utf-8'],
