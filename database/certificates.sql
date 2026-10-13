@@ -32,7 +32,7 @@ begin
  if found then return result; end if;
  select data into product from public.ak_products where id=p_product_id;
  if not found then raise exception 'Choose an existing catalog product'; end if;
- if p_purchase_date is null or p_purchase_date>current_date then raise exception 'Purchase date must not be in the future'; end if;
+ if p_purchase_date is null or p_purchase_date>(now() at time zone 'Asia/Kolkata')::date then raise exception 'Purchase date must not be in the future'; end if;
  if p_order_id is not null and not exists(select 1 from public."AK orders" where id=p_order_id and form_type='checkout') then raise exception 'Order ID was not found'; end if;
  insert into public.ak_certificates(request_id,product_id,product_name,buyer_name,purchase_date,edition,order_id,message,issued_by)
  values(p_request_id,p_product_id,product->>'name',trim(p_buyer_name),p_purchase_date,trim(p_edition),p_order_id,trim(p_message),auth.uid())
