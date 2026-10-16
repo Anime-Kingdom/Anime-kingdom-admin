@@ -8,7 +8,7 @@ create table if not exists public.ak_certificates (
  product_id text not null,
  product_name text not null check(length(product_name) between 1 and 200),
  edition text not null default '' check(length(edition)<=160),
- buyer_name text not null check(length(buyer_name) between 1 and 120),
+ buyer_name text not null check(length(buyer_name)<=120),
  purchase_date date not null,
  order_id uuid,
  message text not null default 'Congratulations on your new collectible. Welcome to the Anime Kingdom family!' check(length(message)<=500),
