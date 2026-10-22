@@ -1,0 +1,36 @@
+begin;
+do $$
+declare admin_id uuid; actor text:='test_'||encode(extensions.gen_random_bytes(5),'hex'); code_a text:='TEST_A_'||upper(encode(extensions.gen_random_bytes(5),'hex')); code_b text:='TEST_B_'||upper(encode(extensions.gen_random_bytes(5),'hex')); old_password text:=encode(extensions.gen_random_bytes(20),'hex'); new_password text:=encode(extensions.gen_random_bytes(20),'hex'); login jsonb; report jsonb; old_token text; blocked boolean; baseline jsonb;
+begin
+ select to_jsonb(p) into baseline from public.ak_partners p where username='raggo';
+ select user_id into admin_id from public.ak_admins limit 1;if admin_id is null then raise exception 'No existing administrator';end if;
+ perform set_config('request.jwt.claim.sub',admin_id::text,true);
+ insert into public.ak_coupons(code,percent,minimum,enabled) values(code_a,10,0,true),(code_b,10,0,true);
+ perform public.ak_admin_create_partner(actor,'Verification Creator',array[code_a],old_password);
+ if public.ak_admin_list_partners()::text ~ 'password_hash|failed_attempts|token_hash' then raise exception 'Private authentication fields exposed';end if;
+ blocked:=false;begin perform public.ak_admin_create_partner(actor||'_other','Other Creator',array[code_a],old_password);exception when invalid_parameter_value then blocked:=true;end;if not blocked then raise exception 'Shared code assignment accepted';end if;
+ blocked:=false;begin perform public.ak_admin_update_partner(actor,'Verification Creator',array[code_b||'_MISSING']);exception when invalid_parameter_value then blocked:=true;end;if not blocked then raise exception 'Missing coupon accepted';end if;
+ login:=public.ak_partner_login(actor,old_password);if not(login->>'ok')::boolean then raise exception 'Created account cannot log in';end if;old_token:=login->>'token';
+ perform public.ak_admin_set_partner_enabled(actor,false);
+ if exists(select 1 from public.ak_partner_sessions where username=actor) then raise exception 'Disable failed to revoke sessions';end if;
+ if (public.ak_partner_login(actor,old_password)->>'ok')::boolean then raise exception 'Disabled account can sign in';end if;
+ if not (select enabled from public.ak_coupons where code=code_a) then raise exception 'Disabling access changed coupon';end if;
+ blocked:=false;begin perform public.ak_partner_code_report(old_token);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Disabled session can read';end if;
+ perform public.ak_admin_reset_partner_password(actor,new_password);
+ if (select enabled from public.ak_partners where username=actor) then raise exception 'Password reset enabled closed account';end if;
+ perform public.ak_admin_set_partner_enabled(actor,true);
+ if (public.ak_partner_login(actor,old_password)->>'ok')::boolean then raise exception 'Old password still works';end if;
+ login:=public.ak_partner_login(actor,new_password);if not(login->>'ok')::boolean then raise exception 'New password cannot sign in';end if;old_token:=login->>'token';
+ perform public.ak_admin_update_partner(actor,'Updated Creator',array[code_b]);
+ blocked:=false;begin perform public.ak_partner_code_report(old_token);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Code update did not revoke sessions';end if;
+ login:=public.ak_partner_login(actor,new_password);report:=public.ak_partner_code_report(login->>'token');if report->'codes'->0->>'code'<>code_b or jsonb_array_length(report->'codes')<>1 then raise exception 'Assigned code report incorrect';end if;
+ perform set_config('request.jwt.claim.sub','',true);
+ blocked:=false;begin perform public.ak_admin_list_partners();exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Anonymous list allowed';end if;
+ blocked:=false;begin perform public.ak_admin_create_partner(actor||'_x','Denied',array[code_b],old_password);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Anonymous creation allowed';end if;
+ blocked:=false;begin perform public.ak_admin_update_partner(actor,'Denied',array[code_b]);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Anonymous edit allowed';end if;
+ blocked:=false;begin perform public.ak_admin_set_partner_enabled(actor,false);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Anonymous toggle allowed';end if;
+ blocked:=false;begin perform public.ak_admin_reset_partner_password(actor,old_password);exception when insufficient_privilege then blocked:=true;end;if not blocked then raise exception 'Anonymous password reset allowed';end if;
+ if (select to_jsonb(p) from public.ak_partners p where username='raggo') is distinct from baseline then raise exception 'Existing Raggo account changed';end if;
+end $$;
+rollback;
+select 'PASS: create/edit; unique existing codes; disable/enable; session revocation; password change; old-password denial; administrator-only controls; coupons and Raggo unchanged. Test records rolled back.' as result;
