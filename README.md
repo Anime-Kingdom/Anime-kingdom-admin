@@ -38,3 +38,12 @@ Edit the root website files and run npm run build to synchronize the Android ass
 For hosts that run a Node application, use `npm start` (entry file `server.cjs`). The production server listens on `0.0.0.0` and the hosting platform's `PORT`, defaulting to 3000. Health check: `/healthz`. Use Node 18 or newer. Do not use the localhost-only development preview for production. Static hosting can still use `npm run build` and publish `dist`.
 
 After pulling a new commit, redeploy/restart the hosting application. A 503 that persists requires checking the host's deployment logs and start command; a GitHub push alone does not guarantee the host has deployed the change.
+
+
+## Product studio and customer accounts
+
+The editor supports gallery covers, colour/character options, stable option codes, labels, per-option uploads, swatches, ordering, packs, minimum quantity, material, height, featured/new flags and contact-store availability. Stock remains shared between options. Saves preserve unedited product data.
+
+Sign-ins & accounts reads `ak_admin_customer_accounts` after the existing administrator-role check. Apply `database/customer-activity.sql` once; verification in `database/verify-customer-activity.sql` rolls back test writes. This migration is installed on the current project. Customers record only their own app/website surface through an authenticated RPC. Existing authentication supplies last-sign-in dates. Surface history begins with this release and is not an online-presence count.
+
+Custom requests and messages have separate inboxes. CSV exports escape spreadsheet formula prefixes. Certificates, QR labels, original authentication and existing order tools remain available. New UI assets are included in the server allowlist and Android source asset sync; no Android APK was rebuilt for this update.
