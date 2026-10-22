@@ -7,6 +7,17 @@
  const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'?u.href:'';}catch{return '';}};
  const tag=(text,parent,ok=false)=>{const e=element('span',text,parent);e.className='tag'+(ok?' ok':'');return e;};
  const reportTabs=['accounts','requests','messages'];
+ const partnerButton=element('button','Partner access',document.querySelector('nav'));partnerButton.dataset.tab='partner-access';partnerButton.onclick=()=>{if(busy)return;tab='partner-access';load();};
+ function renderPartnerSetup(){
+  $('list').replaceChildren();$('list').className='';$('heading').textContent='Raggo partner access';$('add').hidden=true;$('result-count').textContent='';$('record-count').textContent='';document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  const panel=element('div',undefined,$('list'));panel.className='report-note';panel.style.maxWidth='620px';element('h2','Create private Raggo login',panel);element('p','Username: Raggo. Access is limited to aggregate statistics for RAGGOFAN100OFF and RAGGOFAN50OFF. Customer names, contact details and other creators’ codes are excluded.',panel);
+  const form=element('form',undefined,panel),label=element('label','New partner password',form),password=element('input',undefined,label);password.type='password';password.autocomplete='new-password';password.required=true;password.minLength=8;password.maxLength=72;
+  const repeatLabel=element('label','Confirm partner password',form),repeat=element('input',undefined,repeatLabel);repeat.type='password';repeat.autocomplete='new-password';repeat.required=true;repeat.minLength=8;repeat.maxLength=72;
+  const accessLabel=element('label',undefined,form),approve=element('input',undefined,accessLabel);approve.type='checkbox';approve.required=true;accessLabel.append(document.createTextNode(' Allow Raggo to view usage statistics for these two codes only.'));
+  const submit=element('button','Create Raggo partner login',form);submit.type='submit';const status=element('p','',form);status.setAttribute('role','status');
+  form.onsubmit=async event=>{event.preventDefault();if(submit.disabled||!form.reportValidity())return;if(password.value!==repeat.value){status.textContent='The passwords do not match.';return;}const value=password.value;password.value='';repeat.value='';submit.disabled=true;status.textContent='Creating protected partner access…';try{await request('/rest/v1/rpc/ak_admin_create_raggo_partner',{method:'POST',body:JSON.stringify({p_password:value})});status.textContent='Raggo login created. Open https://raggo.animekingdom.in/ to sign in. The partner has no store administration access.';submit.hidden=true;}catch(e){status.textContent=e.message;submit.disabled=false;}};
+ }
+
  const showAll=element('button','Show all products',$('view-filter').parentElement.parentElement);showAll.id='show-all-products';showAll.className='secondary';showAll.type='button';showAll.onclick=()=>{$('search').value='';$('filter').value='all';$('view-filter').value='all';$('sort').value='default';render();};
  function optionMatches(p,filter){return filter==='all'||filter==='featured'&&p.featured||filter==='new'&&p.new||filter==='options'&&p.colors?.length||filter==='unavailable'&&p.availabilityUnconfirmed;}
  function displayedRows(){let source=tab==='inventory'?overview.products:rows;const filter=$('view-filter').value;if(tab==='products')source=source.filter(r=>optionMatches(r.data,filter));if(tab==='orders'&&filter!=='all')source=source.filter(r=>(r.status||'pending')===filter);return filteredRows(source,tab);}
@@ -16,8 +27,8 @@
   const f=$('view-filter');if(f.dataset.tab&&f.dataset.tab!==tab)$('search').value='';const previous=f.dataset.tab===tab?f.value:'all';f.replaceChildren();
   const entries=tab==='products'?[['all','All products'],['featured','Featured'],['new','New arrivals'],['options','With options'],['unavailable','Contact store']]:tab==='accounts'?[['all','All accounts'],['website','Used website'],['app','Used app'],['both','Used both'],['signed','Has signed in'],['no-profile','Profile incomplete']]:tab==='orders'?[['all','All orders'],...['pending','confirmed','packed','shipped','delivered','cancelled'].map(s=>[s,s[0].toUpperCase()+s.slice(1)])]:[['all','All records']];
   for(const [value,label]of entries){const o=element('option',label,f);o.value=value;}f.value=entries.some(([v])=>v===previous)?previous:'all';f.dataset.tab=tab;
-  showAll.hidden=tab!=='products';$('record-count').hidden=['dashboard','certificates'].includes(tab);f.parentElement.hidden=!['products','accounts','orders'].includes(tab);
-  $('list').classList.toggle('product-list',tab==='products');if(reportTabs.includes(tab))$('list').classList.toggle('card-grid',false);if($('filter'))$('filter').disabled=['dashboard','customers','certificates',...reportTabs].includes(tab);if($('sort'))$('sort').disabled=!['products','inventory'].includes(tab);$('export-data').hidden=['dashboard','certificates'].includes(tab);
+  showAll.hidden=tab!=='products';$('record-count').hidden=['dashboard','certificates','partner-access'].includes(tab);f.parentElement.hidden=!['products','accounts','orders'].includes(tab);
+  $('list').classList.toggle('product-list',tab==='products');if(reportTabs.includes(tab))$('list').classList.toggle('card-grid',false);if($('filter'))$('filter').disabled=['dashboard','customers','certificates','partner-access',...reportTabs].includes(tab);if($('sort'))$('sort').disabled=!['products','inventory'].includes(tab);$('export-data').hidden=['dashboard','certificates','partner-access'].includes(tab);
  }
  function matchAccount(a){const filter=$('view-filter').value;return JSON.stringify(a).toLowerCase().includes($('search').value.toLowerCase())&&(filter==='all'||filter==='website'&&a.website_last_seen||filter==='app'&&a.app_last_seen||filter==='both'&&a.website_last_seen&&a.app_last_seen||filter==='signed'&&a.last_sign_in_at||filter==='no-profile'&&!a.customer_id);}
  async function getAccounts(){
@@ -27,6 +38,7 @@
  }
  load=async function(append=false,quiet=false){
   if(busy)return;
+  if(tab==='partner-access'){setupFilter();renderPartnerSetup();return;}
   const previousTab=$('view-filter').dataset.tab;setupFilter();
   if(previousTab!==tab){$('list').replaceChildren();element('p','Loading '+({products:'products',accounts:'accounts'}[tab]||tab)+'…',$('list')).className='empty-panel';$('record-count').textContent='';$('result-count').textContent='';}
   if(!reportTabs.includes(tab)){
@@ -45,6 +57,7 @@
  };
  render=function(){
   setupFilter();
+  if(tab==='partner-access'){renderPartnerSetup();return;}
   if(tab==='accounts'){renderAccounts();return;}if(['requests','messages'].includes(tab)){renderMessages();return;}
   if(tab==='products'){renderProductTable();return;}
   if(['dashboard','customers','inventory','certificates'].includes(tab)){legacyRender();if(tab==='inventory')$('record-count').textContent=displayedRows().length+' products';else if(tab==='customers')$('record-count').textContent='';return;}
