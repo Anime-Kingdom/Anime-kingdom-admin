@@ -7,12 +7,16 @@
  const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'?u.href:'';}catch{return '';}};
  const tag=(text,parent,ok=false)=>{const e=element('span',text,parent);e.className='tag'+(ok?' ok':'');return e;};
  const reportTabs=['accounts','requests','messages'];
+ const showAll=element('button','Show all products',$('view-filter').parentElement.parentElement);showAll.id='show-all-products';showAll.className='secondary';showAll.type='button';showAll.onclick=()=>{$('search').value='';$('filter').value='all';$('view-filter').value='all';$('sort').value='default';render();};
+ function optionMatches(p,filter){return filter==='all'||filter==='featured'&&p.featured||filter==='new'&&p.new||filter==='options'&&p.colors?.length||filter==='unavailable'&&p.availabilityUnconfirmed;}
+ function displayedRows(){let source=tab==='inventory'?overview.products:rows;const filter=$('view-filter').value;if(tab==='products')source=source.filter(r=>optionMatches(r.data,filter));if(tab==='orders'&&filter!=='all')source=source.filter(r=>(r.status||'pending')===filter);return filteredRows(source,tab);}
  const legacyPortraits=['sanemi','zenitsu','tanjiro','giyu','muichiro','giyu','mitsuri','rengoku','kanao','shinobu'];
  function optionPhoto(p,key,index){return p.optionImages?.[key]||(p.id==='product-fda957ef-9189-437e-9915-61cc3d6138fa'&&legacyPortraits[index]?'https://animekingdom.in/portrait-'+legacyPortraits[index]+'.webp':'');}
  function setupFilter(){
   const f=$('view-filter');if(f.dataset.tab&&f.dataset.tab!==tab)$('search').value='';const previous=f.dataset.tab===tab?f.value:'all';f.replaceChildren();
   const entries=tab==='products'?[['all','All products'],['featured','Featured'],['new','New arrivals'],['options','With options'],['unavailable','Contact store']]:tab==='accounts'?[['all','All accounts'],['website','Used website'],['app','Used app'],['both','Used both'],['signed','Has signed in'],['no-profile','Profile incomplete']]:tab==='orders'?[['all','All orders'],...['pending','confirmed','packed','shipped','delivered','cancelled'].map(s=>[s,s[0].toUpperCase()+s.slice(1)])]:[['all','All records']];
   for(const [value,label]of entries){const o=element('option',label,f);o.value=value;}f.value=entries.some(([v])=>v===previous)?previous:'all';f.dataset.tab=tab;
+  showAll.hidden=tab!=='products';$('record-count').hidden=['dashboard','certificates'].includes(tab);f.parentElement.hidden=!['products','accounts','orders'].includes(tab);
   $('list').classList.toggle('product-list',tab==='products');if(reportTabs.includes(tab))$('list').classList.toggle('card-grid',false);if($('filter'))$('filter').disabled=['dashboard','customers','certificates',...reportTabs].includes(tab);if($('sort'))$('sort').disabled=!['products','inventory'].includes(tab);$('export-data').hidden=['dashboard','certificates'].includes(tab);
  }
  function matchAccount(a){const filter=$('view-filter').value;return JSON.stringify(a).toLowerCase().includes($('search').value.toLowerCase())&&(filter==='all'||filter==='website'&&a.website_last_seen||filter==='app'&&a.app_last_seen||filter==='both'&&a.website_last_seen&&a.app_last_seen||filter==='signed'&&a.last_sign_in_at||filter==='no-profile'&&!a.customer_id);}
@@ -22,7 +26,9 @@
   return {accounts:all,stats};
  }
  load=async function(append=false,quiet=false){
-  setupFilter();
+  if(busy)return;
+  const previousTab=$('view-filter').dataset.tab;setupFilter();
+  if(previousTab!==tab){$('list').replaceChildren();element('p','Loading '+({products:'products',accounts:'accounts'}[tab]||tab)+'…',$('list')).className='empty-panel';$('record-count').textContent='';$('result-count').textContent='';}
   if(!reportTabs.includes(tab)){
    await legacyLoad(append,quiet);
    if(tab==='dashboard'&&session){const version=++reportVersion;try{const report=await request('/rest/v1/rpc/ak_admin_customer_accounts',{method:'POST',body:JSON.stringify({p_offset:0,p_limit:1})});if(version===reportVersion&&tab==='dashboard'){accountStats=report;renderOverview();}}catch(e){if(!quiet)message('Catalog loaded. Account report: '+e.message,true);}}
@@ -40,15 +46,25 @@
  render=function(){
   setupFilter();
   if(tab==='accounts'){renderAccounts();return;}if(['requests','messages'].includes(tab)){renderMessages();return;}
-  const original=rows,filter=$('view-filter').value;
-  if(tab==='products')rows=original.filter(({data:p})=>filter==='all'||filter==='featured'&&p.featured||filter==='new'&&p.new||filter==='options'&&p.colors?.length||filter==='unavailable'&&p.availabilityUnconfirmed);
-  if(tab==='orders'&&filter!=='all')rows=original.filter(r=>r.status===filter);
-  const visibleRows=typeof filteredRows==='function'?filteredRows(rows,tab):rows.filter(r=>JSON.stringify(r).toLowerCase().includes($('search').value.toLowerCase()));
-  legacyRender();$('record-count').textContent=rows.filter(r=>JSON.stringify(r).toLowerCase().includes($('search').value.toLowerCase())).length+' records';rows=original;
-  if(tab==='products'){
-   const matching=visibleRows;
-   [...$('list').children].filter(e=>e.tagName==='ARTICLE').forEach((card,i)=>{const row=matching[i];if(!row)return;const p=row.data;if(p.colors?.length)tag(p.colors.length+' '+(p.optionLabel==='Design'?'designs':'colours'),card);if(p.featured)tag('Featured',card);if(p.availabilityUnconfirmed)tag('Contact store',card);const duplicate=element('button','Duplicate as draft',card);duplicate.className='secondary';duplicate.onclick=()=>{edit({id:null,data:{...structuredClone(p),name:p.name+' (copy)'}});editing=null;$('product-editor-title').textContent='New product from copy';};});
-  }
+  if(tab==='products'){renderProductTable();return;}
+  if(['dashboard','customers','inventory','certificates'].includes(tab)){legacyRender();if(tab==='inventory')$('record-count').textContent=displayedRows().length+' products';else if(tab==='customers')$('record-count').textContent='';return;}
+  const original=rows;rows=displayedRows();
+  try{legacyRender();$('record-count').textContent=rows.length+' records';}finally{rows=original;}
+ };
+ function renderProductTable(){
+  const list=$('list'),found=displayedRows();list.replaceChildren();list.classList.remove('card-grid');
+  $('result-count').textContent=found.length+' of '+rows.length+' products';$('record-count').textContent=found.length===rows.length?'All products shown':(rows.length-found.length)+' hidden by filters';
+  if(!found.length){element('div','No products match these filters. Use Show all products to reset them.',list).className='empty-panel';return;}
+  const wrap=element('div',undefined,list);wrap.className='table-wrap catalog-table-wrap';const table=element('table',undefined,wrap);table.className='catalog-table';table.setAttribute('aria-label','Product catalog');
+  const head=element('tr',undefined,element('thead',undefined,table));for(const label of ['#','Product','Price','Stock','Options','Actions'])element('th',label,head);
+  const body=element('tbody',undefined,table);
+  found.forEach((row,index)=>{const p=row.data,tr=element('tr',undefined,body);element('td',String(index+1),tr);const product=element('td',undefined,tr),identity=element('div',undefined,product);identity.className='catalog-identity';const image=publicImage(p.imageUrl||p.imageUrls?.[0]);if(image){const img=element('img',undefined,identity);img.src=image;img.alt='';img.loading='lazy';}const text=element('div',undefined,identity);element('strong',p.name||'Unnamed product',text);element('small',[p.anime,p.category].filter(Boolean).join(' · '),text);
+   const price=element('td',money(p.price),tr);if(p.original>p.price)element('small',money(p.original)+' original',price);
+   const stock=element('td',String(p.stock??0),tr);element('small',p.availabilityUnconfirmed?'Contact store':Number(p.stock)===0?'Out of stock':Number(p.stock)<=5?'Low stock':'In stock',stock);
+   const options=element('td',p.colors?.length?p.colors.length+' '+(p.optionLabel==='Design'?'designs':'colours'):'—',tr);if(p.featured)tag('Featured',options);
+   const actions=element('td',undefined,tr);actions.className='catalog-actions';const editButton=element('button','Edit product',actions);editButton.setAttribute('aria-label','Edit '+p.name);editButton.onclick=()=>edit(row);const duplicate=element('button','Duplicate as draft',actions);duplicate.className='secondary';duplicate.setAttribute('aria-label','Duplicate '+p.name+' as draft');duplicate.onclick=()=>{edit({id:null,data:{...structuredClone(p),name:p.name+' (copy)'}});editing=null;$('product-editor-title').textContent='New product from copy';};
+  });
+
  };
  renderOverview=function(){legacyOverview();if(tab!=='dashboard')return;const list=$('list');const note=element('div',undefined,list);note.className='report-note';element('strong','Your next actions',note);const low=overview.products.filter(r=>Number(r.data.stock)<=5).length;element('p',low?low+' products need a stock check. Open Inventory to update quantities.':'Stock levels are healthy. Open Product catalog to add a new collection or design.',note);if(session&&accountStats){const grid=element('div',undefined,list);grid.className='metrics report-metrics';for(const[label,value]of [['REGISTERED ACCOUNTS',accountStats.registered],['ACCOUNTS THAT SIGNED IN',accountStats.signedIn],['USED WEBSITE',accountStats.website],['USED APP',accountStats.app]]){const c=element('article',undefined,grid);element('small',label,c);element('h2',String(value),c);element('p','Unique customer accounts',c);}const b=element('button','View customer sign-ins',list);b.onclick=()=>{tab='accounts';load();};}};
  function renderAccounts(){
@@ -66,9 +82,9 @@
  $('search').oninput=()=>render();$('view-filter').onchange=()=>render();
  $('export-data').onclick=()=>{
   if(['accounts','orders','customers','requests','messages'].includes(tab)&&!session){message('Connect as administrator before exporting private records.',true);return;}
-  const filter=$('view-filter').value;const sourceRows=rows.filter(r=>tab==='products'?(filter==='all'||filter==='featured'&&r.data.featured||filter==='new'&&r.data.new||filter==='options'&&r.data.colors?.length||filter==='unavailable'&&r.data.availabilityUnconfirmed):tab==='orders'&&filter!=='all'?r.status===filter:true);
-  let data=tab==='accounts'?accounts.filter(matchAccount).map(a=>({name:a.full_name,email:a.email,phone:a.phone,provider:a.provider,last_sign_in:a.last_sign_in_at,website_last_used:a.website_last_seen,app_last_used:a.app_last_seen,collector_id:a.customer_id})):tab==='products'||tab==='inventory'?(tab==='inventory'?overview.products:sourceRows).map(r=>({id:r.id,name:r.data.name,collection:r.data.anime,category:r.data.category,price:r.data.price,stock:r.data.stock,options:(r.data.colors||[]).join(' | ')})):tab==='customers'?(overview.orders||[]).map(r=>({name:r.customer_name,email:r.email,phone:r.phone,total:r.form_data?.total})):sourceRows.map(r=>({id:r.id,date:r.created_at,name:r.customer_name,email:r.email,phone:r.phone,status:r.status,total:r.form_data?.total}));
-  const q=$('search').value.toLowerCase();data=data.filter(r=>JSON.stringify(r).toLowerCase().includes(q));if(!data.length){message('No records to export.',true);return;}
+  const sourceRows=['products','inventory','orders','coupons'].includes(tab)?displayedRows():rows;
+  let data=tab==='accounts'?accounts.filter(matchAccount).map(a=>({name:a.full_name,email:a.email,phone:a.phone,provider:a.provider,last_sign_in:a.last_sign_in_at,website_last_used:a.website_last_seen,app_last_used:a.app_last_seen,collector_id:a.customer_id})):tab==='products'||tab==='inventory'?sourceRows.map(r=>({id:r.id,name:r.data.name,collection:r.data.anime,category:r.data.category,price:r.data.price,stock:r.data.stock,options:(r.data.colors||[]).join(' | ')})):tab==='customers'?(overview.orders||[]).map(r=>({name:r.customer_name,email:r.email,phone:r.phone,total:r.form_data?.total})):sourceRows.map(r=>({id:r.id,date:r.created_at,name:r.customer_name,email:r.email,phone:r.phone,status:r.status,total:r.form_data?.total}));
+  const q=$('search').value.toLowerCase();if(!['products','inventory','orders','coupons','accounts'].includes(tab))data=data.filter(r=>JSON.stringify(r).toLowerCase().includes(q));if(!data.length){message('No records to export.',true);return;}
   const cell=v=>'"'+String(v??'').replace(/^(?:\s*[=+@-]|[\t\r])/,"'$&").replaceAll('"','""')+'"';const fields=Object.keys(data[0]);const csv='\ufeff'+[fields.map(cell).join(','),...data.map(r=>fields.map(k=>cell(r[k])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='anime-kingdom-'+tab+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
  edit=function(row){
