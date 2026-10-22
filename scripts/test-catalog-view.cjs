@@ -17,8 +17,8 @@ assert.equal(productRows().length,26);assert.equal($('result-count').textContent
 $('search').value='Product 25';context.render();assert.equal(productRows().length,1);assert(productRows()[0].children[1].children[0].children[1].children[0].textContent.includes('25'));
 $('filter').value='out-of-stock';$('view-filter').value='featured';$('sort').value='price-high';
 const reset=filters.children.find(e=>e.id==='show-all-products');reset.onclick();assert.equal(productRows().length,26);assert.equal($('search').value,'');assert.equal($('filter').value,'all');assert.equal($('sort').value,'default');
-$('filter').value='out-of-stock';context.render();assert.equal(productRows().length,9);assert.equal($('record-count').textContent,'17 hidden by filters');
+$('filter').value='out-of-stock';$('filter').onchange();assert.equal(productRows().length,9);assert.equal($('record-count').textContent,'17 hidden by filters');
 $('filter').value='all';$('view-filter').value='featured';context.render();assert.equal(productRows().length,13);
-$('view-filter').value='all';$('sort').value='price-high';context.render();assert.equal(productRows()[0].children[2].textContent,'₹26');
+$('view-filter').value='all';$('sort').value='price-high';$('sort').onchange();assert.equal(productRows()[0].children[2].textContent,'₹26');
 let edited;context.edit=r=>edited=r;productRows()[0].children[5].children[0].onclick();assert.equal(edited.id,'p25');
 context.busy=true;const before=$('list').children[0];context.tab='accounts';context.load().then(()=>{assert.equal($('list').children[0],before);console.log('PASS: all 26 rows rendered; search, combined filters, reset, sorting, edit mapping and busy-load guard.');}).catch(e=>{console.error(e);process.exitCode=1});
