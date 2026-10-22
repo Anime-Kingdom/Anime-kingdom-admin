@@ -38,7 +38,7 @@
  }
  load=async function(append=false,quiet=false){
   if(busy)return;
-  if(tab==='partner-access'){setupFilter();renderPartnerSetup();return;}
+  if(tab==='partner-access'){if(quiet)return;setupFilter();renderPartnerSetup();return;}
   const previousTab=$('view-filter').dataset.tab;setupFilter();
   if(previousTab!==tab){$('list').replaceChildren();element('p','Loading '+({products:'products',accounts:'accounts'}[tab]||tab)+'…',$('list')).className='empty-panel';$('record-count').textContent='';$('result-count').textContent='';}
   if(!reportTabs.includes(tab)){
