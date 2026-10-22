@@ -15,6 +15,8 @@ const files = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/modern-admin.js': ['modern-admin.js','text/javascript; charset=utf-8'],
+  '/modern-admin.css': ['modern-admin.css','text/css; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8']
 };
 function createServer() {
