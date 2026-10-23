@@ -1,0 +1,55 @@
+begin;
+do $$
+declare admin_id uuid; actor text:='qa_'||encode(extensions.gen_random_bytes(6),'hex'); code_a text:='QA_'||upper(encode(extensions.gen_random_bytes(5),'hex')); pass text:=encode(extensions.gen_random_bytes(20),'hex'); token text; order_a uuid:=gen_random_uuid(); order_b uuid:=gen_random_uuid(); w jsonb; req jsonb; key_id uuid:=gen_random_uuid(); failed boolean; qr text:='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jV1kAAAAASUVORK5CYII='; n integer;
+begin
+ select user_id into admin_id from public.ak_admins limit 1;
+ insert into public.ak_partners(username,display_name,password_hash,codes,commission_rate) values(actor,'Wallet Test',extensions.crypt(pass,extensions.gen_salt('bf',4)),array[code_a],.10);
+ token:=public.ak_partner_login(actor,pass)->>'token';
+ perform set_config('request.jwt.claim.sub','',true);
+ insert into public.ak_products(id,data) values(actor,jsonb_build_object('id',actor,'name','Wallet QA fixture','price',1500,'stock',10,'anime','QA','category','QA','imageUrl','','imageUrls','[]'::jsonb));
+ insert into public."AK orders"(id,form_type,customer_name,email,phone,status,form_data)
+ values(order_a,'checkout','Wallet QA','qa@example.invalid','9000000000','pending',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('id',actor,'qty',1)),'subtotal',1500,'discount',100,'shipping',50,'total',1450,'couponCode',code_a,'discountSource','coupon')),
+ (order_b,'checkout','Wallet QA','qa@example.invalid','9000000000','delivered',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('id',actor,'qty',1)),'subtotal',10000,'discount',100,'couponCode',code_a));
+ w:=public.ak_partner_wallet(token);
+ if (w->'totals'->>'available')::numeric<>0 then raise exception 'Checkout self-credited';end if;
+ if (select commission from public.ak_partner_earnings where order_id=order_a::text)<>140 then raise exception 'After-discount shipping-exclusive calculation failed';end if;
+ failed:=false;begin perform public.ak_partner_request_withdrawal(token,1000,qr,'QA payee',key_id);exception when others then failed:=true;end;if not failed then raise exception 'Early withdrawal accepted';end if;
+ perform set_config('request.jwt.claim.sub',admin_id::text,true);
+ update public."AK orders" set status='confirmed' where id=order_a;
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>0 then raise exception 'Confirmed credited';end if;
+ update public."AK orders" set status='delivered' where id=order_a;
+ update public."AK orders" set status='delivered' where id=order_a;
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>140 then raise exception 'Delivered credit or duplicate protection failed';end if;
+ update public."AK orders" set status='delivered' where id=order_b;
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>1130 then raise exception 'Delivered totals failed';end if;
+ perform set_config('request.jwt.claim.sub','',true);
+ failed:=false;begin perform public.ak_partner_request_withdrawal(token,999,qr,'QA payee',key_id);exception when others then failed:=true;end;if not failed then raise exception 'Minimum ignored';end if;
+ failed:=false;begin perform public.ak_partner_request_withdrawal(token,1200,qr,'QA payee',key_id);exception when others then failed:=true;end;if not failed then raise exception 'Overdraw accepted';end if;
+ req:=public.ak_partner_request_withdrawal(token,1000,qr,'QA payee',key_id);
+ perform public.ak_partner_request_withdrawal(token,1000,qr,'QA payee',key_id);
+ select count(*) into n from public.ak_partner_withdrawals where username=actor;if n<>1 then raise exception 'Retry duplicate';end if;
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>130 then raise exception 'Reservation missing';end if;
+ failed:=false;begin perform public.ak_partner_request_withdrawal(token,1000,qr,'QA payee',gen_random_uuid());exception when others then failed:=true;end;if not failed then raise exception 'Second pending request allowed';end if;
+ failed:=false;begin perform public.ak_admin_partner_wallets();exception when insufficient_privilege then failed:=true;end;if not failed then raise exception 'Anonymous admin read';end if;
+ failed:=false;begin perform public.ak_admin_withdrawal_qr((req->>'id')::uuid);exception when insufficient_privilege then failed:=true;end;if not failed then raise exception 'Anonymous QR read';end if;
+ failed:=false;begin perform public.ak_admin_resolve_withdrawal((req->>'id')::uuid,'paid','QA-123','test');exception when insufficient_privilege then failed:=true;end;if not failed then raise exception 'Anonymous payment resolution';end if;
+ perform set_config('request.jwt.claim.sub',admin_id::text,true);
+ update public."AK orders" set status='cancelled' where id=order_b;
+ failed:=false;begin perform public.ak_admin_resolve_withdrawal((req->>'id')::uuid,'paid','QA-123','test');exception when others then failed:=true;end;if not failed then raise exception 'Invalidated balance paid';end if;
+ perform public.ak_admin_resolve_withdrawal((req->>'id')::uuid,'rejected',null,'Order cancelled');
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>140 then raise exception 'Rejection release failed';end if;
+ update public."AK orders" set status='delivered' where id=order_b;
+ req:=public.ak_partner_request_withdrawal(token,1000,qr,'QA payee',gen_random_uuid());
+ perform public.ak_admin_resolve_withdrawal((req->>'id')::uuid,'paid','QA-123','Synthetic receipt');
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>130 then raise exception 'Paid balance failed';end if;
+ failed:=false;begin perform public.ak_admin_resolve_withdrawal((req->>'id')::uuid,'paid','QA-123','test');exception when others then failed:=true;end;if not failed then raise exception 'Paid twice';end if;
+ update public."AK orders" set status='cancelled' where id=order_b;
+ if (public.ak_partner_wallet(token)->'totals'->>'available')::numeric<>-860 then raise exception 'Reversal after payout not carried forward';end if;
+ if public.ak_partner_wallet(token)::text ~ 'qr_image|qa@example|9000000000|password|token_hash' then raise exception 'Private customer or payment data leaked';end if;
+ failed:=false;begin perform public.ak_partner_wallet(repeat('0',64));exception when insufficient_privilege then failed:=true;end;if not failed then raise exception 'Wrong token';end if;
+ update public.ak_partners set enabled=false where username=actor;
+ failed:=false;begin perform public.ak_partner_wallet(token);exception when insufficient_privilege then failed:=true;end;if not failed then raise exception 'Disabled session';end if;
+ if has_table_privilege('anon','public.ak_partner_earnings','SELECT') or has_table_privilege('authenticated','public.ak_partner_withdrawals','SELECT') then raise exception 'Private tables accessible';end if;
+end $$;
+rollback;
+select 'PASS: INR140 calculation; delivered-only administrator credit; idempotent credits and requests; minimum and balance checks; reserved funds; rejection and manual-paid accounting; reversals; private QR; access checks. All fixtures rolled back, no payment sent.' as result;
