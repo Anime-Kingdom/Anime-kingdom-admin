@@ -47,3 +47,11 @@ The editor supports gallery covers, colour/character options, stable option code
 Sign-ins & accounts reads `ak_admin_customer_accounts` after the existing administrator-role check. Apply `database/customer-activity.sql` once; verification in `database/verify-customer-activity.sql` rolls back test writes. This migration is installed on the current project. Customers record only their own app/website surface through an authenticated RPC. Existing authentication supplies last-sign-in dates. Surface history begins with this release and is not an online-presence count.
 
 Custom requests and messages have separate inboxes. CSV exports escape spreadsheet formula prefixes. Certificates, QR labels, original authentication and existing order tools remain available. New UI assets are included in the server allowlist and Android source asset sync; no Android APK was rebuilt for this update.
+
+## 27 October 2026 admin fixes
+
+The product catalog keeps its table layout across unchanged 15-second refreshes. Product CSV exports include customer-facing descriptions, specifications, options, public images and exact store-app product links; private customer data is not included in product exports. QR tools download PNG images (plus SVG), retain a white quiet zone, and allow cancelling a failed product-list load. The browser chooses Downloads versus Gallery/Photos.
+
+Partner wallets expose an administrator-only future-order commission control. ZYRO and Raggo are configured at 10% in the live database. Private partner reports include item names and quantities without customer contact details, refresh every 15 seconds while visible, and clearly mark unfulfilled orders Not delivered. Existing delivery-only credit, reversal and INR1000 withdrawal checks remain in force. Migrations: database/partner-commission-control.sql and database/partner-live-orders.sql are installed. Historical earnings retain their recorded rates.
+
+Free order alerts poll while the connected admin is open and visible. In-panel alerts need no provider. Browser notifications require the user's browser permission. No SMS or WhatsApp sending, phone-number registration, paid service or background delivery was configured. Tests use simulated or transaction-rolled-back orders; no real orders, deliveries or payments were created.
