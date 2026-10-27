@@ -26,7 +26,7 @@ async function load(append=false,quiet=false){if(busy)return;busy=true;const sel
  configureFilters(selected);
  $('heading').textContent=selected[0].toUpperCase()+selected.slice(1);$('add').hidden=!['products','coupons','certificates'].includes(selected);$('add').textContent=selected==='certificates'?'+ Register item':selected==='coupons'?'+ Coupon':'+ Product';
  try{
- if(selected==='certificates'){more.hidden=true;await loadCertificates();return;}if(['dashboard','customers','inventory'].includes(selected)){await loadOverview(selected);return;}
+ if(selected==='certificates'){$('more').hidden=true;await loadCertificates();return;}if(['dashboard','customers','inventory'].includes(selected)){await loadOverview(selected);return;}
  const path=selected==='coupons'?'/rest/v1/ak_coupons?select=*&order=code.asc':selected==='products'?'/rest/v1/ak_products?select=*&order=id.asc':'/rest/v1/AK%20orders?select=id,created_at,customer_name,email,phone,status,payment_method,utr_number,form_data&form_type=eq.checkout&order=created_at.desc,id.desc';
  const all=[];let page=0;
  while(true){const batch=await request(path+'&limit=100&offset='+page,{},selected==='orders');if(!Array.isArray(batch))throw Error('Unexpected database response.');all.push(...batch);if(batch.length<100)break;page+=batch.length;}
@@ -42,7 +42,7 @@ function configureFilters(selected){
  const filter=$('filter');const previous=filter.datasetTab;filter.datasetTab=selected;
  if(previous!==selected){filter.replaceChildren();const options=selected==='orders'?['all','pending','confirmed','packed','shipped','delivered','cancelled']:selected==='coupons'?['all','enabled','disabled']:['products','inventory'].includes(selected)?['all','in-stock','low-stock','out-of-stock']:['all'];for(const value of options){const o=element('option',value==='all'?'All items':value.replaceAll('-',' '),filter);o.value=value;}filter.value='all';$('search').value='';$('sort').value='default';}
  $('sort').disabled=!['products','inventory'].includes(selected);filter.disabled=['dashboard','customers','certificates'].includes(selected);
- $('list').className=['products','coupons','inventory'].includes(selected)?'card-grid':'';
+ $('list').className=selected==='products'?'product-list':['coupons','inventory'].includes(selected)?'card-grid':'';
  if(previous!==selected)$('result-count').textContent='';
 }
 function filteredRows(items,kind){
